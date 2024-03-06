@@ -1,0 +1,257 @@
+//function to place image to side of text
+function buildbox(imageURL, txt){
+    return '<figure class="table"><table><tbody><tr><td width=50px;height=50px><img src="' + imageURL + '" alt="" height=50 width=50 /></td><td width=5px></td><td>' + txt + '</td></tr></tbody></table></figure>'
+}
+
+// This county, simplified 
+var thisCounty = Generalize($feature, 10000, true, "meters")
+//var thisCounty = Simplify($feature)
+var totalArea = AreaGeodetic(thisCounty)
+
+
+///////// Weather Warnings and Watches 
+// Determine if weather watches or warning are present
+//var FSweather = FeatureSetByName($map, "USA Weather Watches and Warnings")
+// Determine if the current tract falls within any of the warnings
+var inside = Within(centroid(thisCounty), FeatureSetByName($map, "USA Weather Watches and Warnings"))
+// Build the first part of the text
+var txtweather = "According to the National Weather Service, this county is currently experiencing the following weather warnings/watches: <br>" 
+// Assume features are null. This will be used later
+var isNull = True
+// Count how many intersections there are
+var total = Count(inside)
+// create a counter to help you build your text
+var cnt = 1
+// Loop through the results and grab the fields you want: Event + Severity
+for(var x in inside){
+    // If it is not null and there is only 1 intersection, build some text:
+    if(x != null && cnt == total){
+        // This is not null. We will use this later
+        isNull = False
+        // Build the text
+        txtweather += ("<strong>-" + x.Event + " (" + x.Severity + ")</strong>")
+    }
+    // Otherwise, build a multi-line text:
+    else if(x != null && cnt < total){
+        // This is not null. We will use this layer
+        isNull = False
+        cnt += 1
+        // Build the text
+        txtweather += ("<strong>-" + x.Event + " (" + x.Severity + ")" + '</strong><br>')
+    }
+}
+// If null, return different text:
+if(isNull != False){
+    txtweather = "According to the National Weather Service, there are no current weather warning/watches for this county at the moment."
+    }
+
+
+
+///////// Wind 
+//var FSwind = FeatureSetByName($map, "Stations")
+//var intWind = Intersects(thisCounty, FeatureSetByName($map, "Stations") )
+//var c = count(intWind)
+//var s = sum(intWind, "WIND_SPEED")
+//var averageSpeed = s/c
+//var WindSpeed = averageSpeed * 0.621371
+//var windtext = 'When averaging NOAA stations within this county, the average wind speed is <strong>'
+//windtext += When (WindSpeed > 72, "> 72 mp/h (Hurricane Force)", // Classes 12
+//Windspeed > 54, "55-72 mp/h (Storm Force)", // Classes 10 and 11
+//Windspeed > 38, "39-54 mp/h (Gale Force)",// Classes 8 and 9
+//Windspeed > 24, "25-38 mp/h (Strong Breeze)",// Classes 6 and 7
+//Windspeed > 7, "8-24 mp/h (Moderate Breeze)",// Classes 3, 4, and 5
+//Windspeed > 0,  "1-7 mp/h (Light Breeze)",// Classes 1 and 2
+//"0 mp/h (Calm/No Reading)")
+//windtext += "</strong>"
+
+////Wind Gust
+//var FSgust = FeatureSetByName($map, "National Weather Service - Wind Gust Forecast")
+//var intGust = Intersects(thisCounty, FeatureSetByName($map, "National Weather Service - Wind Gust Forecast"))
+//var maxGust = 0
+//var forceList = []
+//var listcounter = 0
+//for(var l in intGust){
+  //forceList[listcounter] = l.force
+  //listcounter += 1 
+//}
+//var maxgust = Max(forceList)
+//var maxgusttext = When (maxgust > 11, "(Hurricane Force)", // Classes 12
+//maxgust > 9, "(Storm Force)", // Classes 10 and 11
+//maxgust > 7, "(Gale Force)",// Classes 8 and 9
+//maxgust > 5, "(Strong Breeze)",// Classes 6 and 7
+//maxgust > 2, "(Moderate Breeze)",// Classes 3, 4, and 5
+//maxgust > 0,  "(Light Breeze)",// Classes 1 and 2
+//"(Calm/No Reading)")
+//windtext += "<br>Max wind gust: <strong>" + maxgust + " mp/h " + maxgusttext + "</strong>"
+
+///////// Temperature 
+//var maxlayer = FeatureSetByName($map, "Maximum")
+//var minlayer = FeatureSetByName($map, "Minimum")
+//determine highest temp withn county 
+var maxtemp = Max(Intersects(thisCounty, FeatureSetByName($map, "Maximum")), "Temp")
+var mintemp = Min(Intersects(thisCounty, FeatureSetByName($map, "Minimum")), "Temp")
+var temptxt = "As forecasted by National Weather Service readings within this county for the next 3 days, the min/max are as follows: <br>Maximum Temperature: <strong>" + maxtemp + "° F</strong>" + '<br>' + "Minimum Temperature: <strong>" + mintemp + "° F</strong>"
+
+
+///////// Precipitation 
+//var FSprecip = FeatureSetByName($map, "Cumulative Precipitation Forecast (72 hour)")
+var intprecip = Intersects(thisCounty, FeatureSetByName($map, "Cumulative Precipitation Forecast (72 hour)"))
+var areaWeightPrecip = 0
+for(var x in intprecip){
+  var percentageArea = AreaGeodetic(Intersection(thisCounty,x))/totalArea
+  var precipitation = x.label
+  var lowerPrec = Number(Left(precipitation, 4))
+  var upperPrec = Number(Mid(precipitation, 8 ,4))
+  var avgPrec = Average(lowerPrec, upperPrec)
+  areaWeightPrecip += (percentageArea * avgPrec)
+}
+var preciptext = "Within the next 72 hours, there could be an average of <strong>" + Round(areaWeightPrecip,2) + " inches</strong> of rain when averaging NOAA precipitation ranges that fall within this county"
+
+
+///////// Stream Gauges 
+//Count number of stream gauges and report back their status
+//var fsrivers = FeatureSetByName($map, "Live Stream Gauges")
+//var intrivers = Intersects(thisCounty, FeatureSetByName($map, "Live Stream Gauges"))
+//var ct = Count(intrivers)
+
+//var statsFS = GroupBy(intrivers,
+ // [
+  //  { name: 'Type', expression: 'Status'}
+  //],
+  //[  // statistics to return for each unique category
+  //  { name: 'num_features', expression: '1', statistic: 'COUNT' }
+  //]
+//);
+//var ordered = OrderBy(statsFs, 'num_features DESC');
+//var streamtext = "According to the latest information the following stream gauges are catagorized as follows:<br>"
+//var i = 0;
+//for (var group in ordered){
+  //i++;
+  //IIf(group.Type == '', streamtext += `<strong>${i}. Unknown Status (${Text(group.num_features, "#,###")})</strong><br>`, streamtext += `<strong>${i}. ${group.Type} (${Text(group.num_features, "#,###")})</strong><br>`)
+//}
+//if(ct == 0){
+  //streamtext = "No stream gauges present"}
+
+
+///////// Air Quality 
+// First, call to the Living Atlas layer
+//var FSaq = FeatureSetByPortalItem(Portal('https://www.arcgis.com/'), "8dcf5d4e124f480fa8c529fbe25ba04e", 0)
+// Determine which stations fall within each county
+var inside = Contains(thisCounty, FeatureSetByPortalItem(Portal('https://www.arcgis.com/'), "8dcf5d4e124f480fa8c529fbe25ba04e", 0))
+// Count how many stations fall within the county
+var countOfStations = Count(inside)
+// Create variables to help you determine the average
+var avgTotal = 0
+var cnt = 0
+// If the first feature that falls within the tract is not null, loop through the features to average them
+if(First(inside) != null){
+    // Loop through the features to determine an average
+    for(var x in inside){
+        avgTotal += x.value
+        cnt += 1
+    }
+    var avg = avgTotal/cnt
+    // Turn the average into a readable phrase based on WHO guidelines
+    var vals = When(avg <= 25, 'Good',
+                avg <= 37.5, 'Moderate',
+                avg <= 75, 'Hazardous',
+                'Extremely Hazardous');
+    // Build text for the popup using the variables created
+    var aqtxt = "This tract contains " + cnt + " OpenAQ station(s) recording PM2.5 values, and the current station readings average to <strong>" + Round(avg,2) + "µg/m³, which is considered " + vals + " air quality.</strong>"
+}
+// If there are no features within the tract, return a readable phrase
+else{
+    aqtxt = "There are no OpenAQ air quality stations in this county to record live PM2.5 readings."
+}
+
+///////// Precip Index
+//var FSindex = FeatureSetByName($map, "Standardized Precipitation Index 6-month")
+//var indexInt = Intersects(thisCounty, FeatureSetByName($map, "Standardized Precipitation Index 6-month"))
+//var indexConditions = ""
+//for(var p in indexInt){
+  //var spi = p.gridcode
+  //var classtext = when(spi==-3,'Extremely dry',
+     //spi==-2,'Very dry',
+     //spi==-1,'Moderately dry',
+     //spi==1,'Moderately wet',
+     //spi==2,'Very wet',
+     //spi==3,'Extremely wet',
+     //'Normal precipitation')
+  //var percentIndex = Round(100*(AreaGeodetic(Intersection(thisCounty,p))/totalArea), 1)
+  //indexConditions += ("<strong>" + classtext + ": " + percentIndex + "% of county</strong><br>") 
+//}
+//var precipintro = "According to the Standardized Precipitation Index (SPI), this county is currently experiencing the following 6-month precipitation index:<br>"
+//var precipindextext = Iif(indexConditions == "", "No precipitation index currently recorded within this county", precipintro + indexConditions)
+
+///////// Wildfires 
+// Returns the number of wildfires that are within each county
+//var WF = FeatureSetByName($map, "Current Incidents")
+var intwf = Intersects(FeatureSetByName($map, "Current Incidents"), thisCounty)
+var countofFires = Count(intwf)
+//Sums the acres of wildfires within each county
+var SumAcresWF = Sum(intwf, 'DailyAcres')
+var firetxt = IIf(countofFires > 0, "The latest information from IRWIN and NIFC shows <strong>" + text(countofFires) + " active wildfires </strong> reporting " + text(SumAcresWF,"#,###.#") + " acres burned.", "No current wildfires present.")
+
+
+///////// Drought 
+//var droughtFS = FeatureSetByName($map, "USA Drought Intensity - Current Conditions")
+var int = Intersects(thisCounty, FeatureSetByName($map, "USA Drought Intensity - Current Conditions"))
+var droughtConditions = ""
+for(var x in int){
+  var class = x.dm 
+  var classtext = when(class == 0, "Abnormally Dry", 
+  class == 1, "Moderate Drought",
+  class == 2, "Severe Drought",
+  class ==3, "Extreme Drought",
+  class == 4, "Exceptional Drought",
+  "No current drought in this county")
+  var percentArea = Round(100*(AreaGeodetic(Intersection(thisCounty,x))/totalArea), 1)
+  droughtConditions += ("<strong>" + classtext + ": " + percentArea + "% of county") + '<br></strong>'
+}
+var droughttxt = Iif(droughtConditions == "", "No drought conditions currently exist within this county", "Summarized statistics from to the U.S. Drought Monitor:<br>" + droughtConditions)
+
+
+///////// Earthquakes 
+// Count number of Earthquakes within each County
+//var eq = FeatureSetByName($map, "Events by Magnitude")
+var eqint = Intersects(thisCounty, FeatureSetByName($map, "Events by Magnitude"))
+var cnt = Count(eqint)
+var past24 = 0
+var pastweek = 0
+var past3mo = 0
+
+for(var x in eqint){
+var hoursOld = x.hoursOld
+When(hoursOld < 25, past24 += 1,
+hoursOld > 24 && hoursOld < 145, pastweek += 1,
+past3mo += 1)
+}
+
+var txt = "According to the USGS the following earthquake events have occurred:"
+txt += "<br><strong>- Past 24 hours: " + text(past24)
+txt += "<br>- Magnitude 4.5 or above within the last week: " + text(pastweek)
+txt += "<br>- Signifigant events within the last 3 months: " + text(past3mo) + "</strong>"
+var eqtxt = IIf(cnt > 0, txt, "No earthquakes observed within the past 3 months.")
+
+///////// Images 
+var weatherimage = "https://cdn-icons-png.flaticon.com/512/5099/5099181.png"
+var windimage = "https://cdn-icons-png.flaticon.com/128/2908/2908135.png"
+var tempimage = "https://cdn-icons-png.flaticon.com/128/2441/2441587.png"
+var precipimage = "https://cdn-icons-png.flaticon.com/128/2908/2908145.png"
+var streamimage = "https://cdn-icons-png.flaticon.com/128/1616/1616292.png"
+var aqimage = "https://cdn-icons-png.flaticon.com/128/3637/3637430.png"
+var fireimage = "https://cdn-icons-png.flaticon.com/128/8466/8466522.png"
+var droughtimage = "https://cdn-icons-png.flaticon.com/128/7354/7354680.png"
+var precipindeximage = "https://cdn-icons-png.flaticon.com/128/2908/2908157.png"
+var eqimage = "https://cdn-icons-png.flaticon.com/128/10/10945.png"
+
+
+///////// Final text 
+var finalText = buildbox(weatherimage, txtweather) +"<br>"+ buildbox(tempimage, temptxt) +"<br>"+ buildbox(precipimage, preciptext) +"<br>"+ buildbox(aqimage, aqtxt) +"<br>"+ buildbox(fireimage, firetxt) +"<br>"+ buildbox(droughtimage, droughttxt) +"<br>"+ buildbox(eqimage, eqtxt)
+
+
+
+return { 
+	type : 'text', 
+	text : finalText //this property supports html tags 
+}
